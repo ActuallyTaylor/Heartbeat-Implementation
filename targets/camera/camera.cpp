@@ -20,13 +20,16 @@ int main(int argc, char *argv[]) {
     httplib::Client client("http://localhost:8129");
 
     while (1) {
+        // TODO: Do camera detection stuff here per assignment requirement  #2
+        // TODO: Something should fail here randomly per assignment requirement #3
+
         // Send a heartbeat every 10 seconds, in the future replace with some form of "camera" functions from assignment document.
         sleep(10);
         auto sendTime = std::time(nullptr);
 
         heartbeat::Message haertbeat {
             .deviceID = deviceID,
-            .time = sendTime
+            .timestamp = sendTime
         };
 
         nlohmann::json j = haertbeat;

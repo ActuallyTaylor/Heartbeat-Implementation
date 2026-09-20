@@ -34,7 +34,7 @@ int main() {
         // Add the message to the beginning of the queue, so we can easily pop the queue when reading.
         messageQueue.insert(messageQueue.begin(), message);
         res.status = 200;
-        std::cout << "Received heartbeat from: " << message.deviceID << " at: " << message.time << std::endl;
+        std::cout << "Received heartbeat from: " << message.deviceID << " at: " << message.timestamp << std::endl;
     });
 
     svr.listen("0.0.0.0", 8129);

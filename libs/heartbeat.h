@@ -9,11 +9,11 @@
 namespace heartbeat {
     struct Message {
         int deviceID;
-        std::time_t time;
+        std::time_t timestamp;
     };
 
     // Generates to_json/from_json.
-    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Message, deviceID, time)
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Message, deviceID, timestamp)
 }
 
 #endif //HEARTBEAT_IMPLEMENTATION_HEARTBEAT_H

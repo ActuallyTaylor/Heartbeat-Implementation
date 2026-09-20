@@ -3,6 +3,6 @@ project(Heartbeat_Implementation)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_subdirectory(target/bus)
-add_subdirectory(target/camera)
-add_subdirectory(target/monitor)
+add_subdirectory(targets/bus)
+add_subdirectory(targets/camera)
+add_subdirectory(targets/monitor)
