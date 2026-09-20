@@ -3,4 +3,4 @@ project(Bus)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(Bus bus.cpp)
+add_executable(Heartbeat_Implementation bus.cpp)
