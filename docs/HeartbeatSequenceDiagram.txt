@@ -1,0 +1,15 @@
+title Autonomous Car Camera Heartbeat Implementation
+
+Camera->Bus:Send heartbeat message
+Bus->Bus:Store heartbeat message
+loop Monitor Bus for Camera Heartbeats 
+Monitor->Bus:Read next heartbeat
+Bus-->Monitor:Oldest heartbeat
+Monitor->Monitor:Set received device's last timestamp
+
+loop All registered devices
+opt Camera has not beat in 5 seconds
+Monitor->Monitor:Log that a device is no longer alive
+end
+end
+end
