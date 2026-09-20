@@ -5,14 +5,35 @@
 
 #include "httplib.hpp"
 #include "json.hpp"
+#include "heartbeat.h"
 
 int main() {
     httplib::Server svr;
 
-    svr.Post("/send", [&](const auto& req, auto& res) {
-        auto json = nlohmann::json::parse(res.body);
-        auto id = json["device_id"].get<int>();
+    std::vector<heartbeat::Message> messageQueue;
 
+    svr.Get("/read", [&](const httplib::Request& req, httplib::Response& res) {
+        if (!messageQueue.empty()) {
+            // Get the message at the end of the queue, this will be the latest message on the bus.
+            heartbeat::Message back = messageQueue.back();
+            messageQueue.pop_back();
+
+            nlohmann::json j = back;
+            res.status = 200;
+            res.body = j.dump();
+        } else {
+            // No content response code.c
+            res.status = 204;
+        }
+    });
+
+
+    svr.Post("/send", [&](const httplib::Request& req, httplib::Response& res) {
+        auto message = nlohmann::json::parse(req.body).get<heartbeat::Message>();
+
+        // Add the message to the beginning of the queue, so we can easily pop the queue when reading.
+        messageQueue.insert(messageQueue.begin(), message);
+        res.status = 200;
     });
 
     svr.listen("0.0.0.0", 8080);
