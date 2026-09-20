@@ -3,4 +3,5 @@ project(Bus)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(Heartbeat_Implementation bus.cpp)
+add_executable(Bus bus.cpp)
+target_include_directories(Bus PRIVATE ${CMAKE_SOURCE_DIR}/libs)
