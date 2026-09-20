@@ -4,7 +4,6 @@
 
 #ifndef HEARTBEAT_IMPLEMENTATION_HEARTBEAT_H
 #define HEARTBEAT_IMPLEMENTATION_HEARTBEAT_H
-#include <ctime>
 #include "json.hpp"
 
 namespace heartbeat {
