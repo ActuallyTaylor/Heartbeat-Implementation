@@ -53,6 +53,8 @@ static camera::ObstacleReading simulateNearestObstacle(const int deviceID, const
         state.camera_wear = MAX_WEAR;
         state.failed = true;
 
+        int failedConfidence = 1 / (100 - static_cast<int>(MAX_WEAR));
+
         return {
             .distance_m = -1.0, .confidence = 0.0, .status = camera::ObstacleStatus::FAULT 
         };
