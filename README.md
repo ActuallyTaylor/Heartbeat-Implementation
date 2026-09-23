@@ -1,6 +1,6 @@
 # Heartbeat Tactic Implementation
 This project represents a mock implementation of a use-case of the "Heartbeat" availability tactic in the context of an
-autonomous vehicle. Three separate processes are created, each described below and each mimicking one component within
+autonomous vehicle. Three separate types of processes are created, each described below and each mimicking one component within
 the object detection subsystem in an autonomous vehicle. First, a "camera" process mimics the actual object detection,
 with random chance failures to demonstrate the use of the heartbeat tactic. Each camera publishes its heartbeat pings to
 the second process, an HTTP server serving as a mock CAN bus, which stores those pings and their timestamps in a
