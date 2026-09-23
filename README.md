@@ -72,7 +72,7 @@ updates the most recently received heartbeat timestamp for that device, and move
 heartbeat after a configurable timeout, the Monitor announces as such by printing a message to the console. 
 
 # Sequence Diagram Narrative
-![Heartbeat sequence diagram](./HeartbeatSequenceDiagram.png)
+![Heartbeat sequence diagram](./docs/HeartbeatSequenceDiagram.png)
 
 ## Summary
 
