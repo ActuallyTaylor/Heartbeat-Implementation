@@ -34,36 +34,27 @@ static const char* statusName(const camera::ObstacleStatus status) {
     return "UNKNOWN";
 }
 
-struct CameraState {
-    double camera_wear = 0.0; //As the camera is exposed to the environment and mechanical vibration of the car it gradually wears down
-    bool failed = false; 
-};
+static camera::ObstacleReading simulateNearestObstacle(const int deviceID, const std::time_t now, camera::CameraState &state, std::mt19937& rng) {
+    std::uniform_real_distribution randomPower(0.0, 1.0);
 
-static camera::ObstacleReading simulateNearestObstacle(const int deviceID, const std::time_t now, CameraState &state, std::mt19937& rng) {
-    std::uniform_real_distribution<double> randomPower(0.0, 1.0);
+    const double wearIncrease = 0.1 + 4.9 * std::pow(randomPower(rng), 2.5); // Randomly simulates wear from 0.1 to 5%, biased towards 0.1%
 
-    const double wearIncrease = 0.1 + 4.9 * std::pow(randomPower(rng), 2.5); //Randomly simulates wear from 0.1 to 5%, biased towards 0.1%
+    state.camera_wear += wearIncrease; // Adds to accumulated camera wear
 
-    state.camera_wear += wearIncrease; //Adds to accumulated camera wear
-
-    const double MAX_WEAR = 100.0;
-
-    //Camera fails completely when it reaches the maximum wear threshold
-    if (state.camera_wear >= MAX_WEAR) {
+    // Camera fails completely when it reaches the maximum wear threshold
+    if (constexpr double MAX_WEAR = 100.0; state.camera_wear >= MAX_WEAR) {
         state.camera_wear = MAX_WEAR;
         state.failed = true;
-
-        int failedConfidence = 1 / (100 - static_cast<int>(MAX_WEAR));
 
         return {
             .distance_m = -1.0, .confidence = 0.0, .status = camera::ObstacleStatus::FAULT 
         };
     }
 
-    std::uniform_real_distribution<double> invalidRandom(0.0, 1.0); 
+    std::uniform_real_distribution invalidRandom(0.0, 1.0);
     double invalidReadingProbability = 0.0;
 
-    //As camera wear accumulates, the risk of an invalid reading increases
+    // As camera wear accumulates, the risk of an invalid reading increases
     if (state.camera_wear >= 75.0) {
         invalidReadingProbability = 0.10;
     } else if (state.camera_wear >= 50.0) {
@@ -120,7 +111,7 @@ int main(int argc, char* argv[]) {
     std::random_device rd;
     std::mt19937 rng(rd());
 
-    CameraState cameraState; 
+    camera::CameraState cameraState;
 
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -144,10 +135,8 @@ int main(int argc, char* argv[]) {
             missedReadingProbability = 0.01;
         }
 
-        std::uniform_real_distribution<double> missedChance(0.0, 1.0);
-
-        //If the camera is still operational, readings may still be missed based on wear thresholds
-        if (!cameraState.failed && missedChance(rng) < missedReadingProbability) {
+        // If the camera is still operational, readings may still be missed based on wear thresholds
+        if (std::uniform_real_distribution missedChance(0.0, 1.0); !cameraState.failed && missedChance(rng) < missedReadingProbability) {
             std::cerr << "Camera " << deviceID << " missed obstacle reading at " << sendTime << std::endl;
             continue;
         }

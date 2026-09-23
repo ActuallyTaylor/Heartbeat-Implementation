@@ -29,7 +29,7 @@ int main() {
 
 
     svr.Post("/send", [&](const httplib::Request& req, httplib::Response& res) {
-        auto message = nlohmann::json::parse(req.body).get<heartbeat::Message>();
+        const auto message = nlohmann::json::parse(req.body).get<heartbeat::Message>();
 
         // Add the message to the beginning of the queue, so we can easily pop the queue when reading.
         messageQueue.insert(messageQueue.begin(), message);
