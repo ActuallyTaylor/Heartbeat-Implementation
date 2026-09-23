@@ -34,25 +34,60 @@ static const char* statusName(const camera::ObstacleStatus status) {
     return "UNKNOWN";
 }
 
-static camera::ObstacleReading simulateNearestObstacle(const int deviceID, const std::time_t now) {
+struct CameraState {
+    double camera_wear = 0.0; //As the camera is exposed to the environment and mechanical vibration of the car it gradually wears down
+    bool failed = false; 
+};
+
+static camera::ObstacleReading simulateNearestObstacle(const int deviceID, const std::time_t now, CameraState &state, std::mt19937& rng) {
+    std::uniform_real_distribution<double> randomPower(0.0, 1.0);
+
+    const double wearIncrease = 0.1 + 4.9 * std::pow(randomPower(rng), 2.5); //Randomly simulates wear from 0.1 to 5%, biased towards 0.1%
+
+    state.camera_wear += wearIncrease; //Adds to accumulated camera wear
+
+    const double MAX_WEAR = 100.0;
+
+    //Camera fails completely when it reaches the maximum wear threshold
+    if (state.camera_wear >= MAX_WEAR) {
+        state.camera_wear = MAX_WEAR;
+        state.failed = true;
+
+        return {
+            .distance_m = -1.0, .confidence = 0.0, .status = camera::ObstacleStatus::FAULT 
+        };
+    }
+
+    std::uniform_real_distribution<double> invalidRandom(0.0, 1.0); 
+    double invalidReadingProbability = 0.0;
+
+    //As camera wear accumulates, the risk of an invalid reading increases
+    if (state.camera_wear >= 75.0) {
+        invalidReadingProbability = 0.10;
+    } else if (state.camera_wear >= 50.0) {
+        invalidReadingProbability = 0.5;
+    } else if (state.camera_wear >= 25.0) {
+        invalidReadingProbability = 0.01;
+    }
+
+    if (invalidRandom(rng) < invalidReadingProbability) { 
+        return { 
+            .distance_m = 999.0, .confidence = 0.0, .status = camera::ObstacleStatus::INVALID
+        };
+    }
+
     const auto seedValue = static_cast<unsigned int>(
         static_cast<unsigned long long>(now) * 1000ULL +
         static_cast<unsigned long long>(static_cast<unsigned int>(deviceID)) * 37ULL);
 
-    std::mt19937 rng(seedValue);
+    std::mt19937 obstacleRandom(seedValue);
+
     std::uniform_real_distribution baseDistance(0.25, 12.0);
     std::uniform_real_distribution jitter(-0.45, 0.45);
 
     const double phase = (static_cast<double>(now) + static_cast<double>(deviceID)) * 0.7;
-    double distance = baseDistance(rng) + jitter(rng) + std::sin(phase) * 0.8;
+    double distance = baseDistance(obstacleRandom) + jitter(obstacleRandom) + std::sin(phase) * 0.8;
     distance = std::clamp(distance, 0.2, 25.0);
-
-    if ((now + static_cast<std::time_t>(deviceID)) % 31 == 0) {
-        return { .distance_m = -1.0, .confidence = 0.0, .status = camera::ObstacleStatus::FAULT };
-    }
-    if ((now + static_cast<std::time_t>(deviceID)) % 17 == 0) {
-        return { .distance_m = 999.0, .confidence = 0.0, .status = camera::ObstacleStatus::INVALID };
-    }
 
     double confidence = 0.96;
     auto status = camera::ObstacleStatus::CLEAR;
@@ -80,13 +115,37 @@ int main(int argc, char* argv[]) {
     const int deviceID = std::stoi(argv[1]);
     httplib::Client client("http://localhost:8129");
 
+    std::random_device rd;
+    std::mt19937 rng(rd());
+
+    CameraState cameraState; 
+
     while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::seconds(2));
 
         const std::time_t sendTime = std::time(nullptr);
-        const camera::ObstacleReading obstacle = simulateNearestObstacle(deviceID, sendTime);
+        const camera::ObstacleReading obstacle = simulateNearestObstacle(deviceID, sendTime, cameraState, rng);
 
-        if ((sendTime + static_cast<std::time_t>(deviceID)) % 23 == 0) {
+        if (cameraState.failed) {
+            std::cerr << "Camera " << deviceID << " has failed completely. " << std::endl;
+            break;
+        }
+
+        //As the wear on the camera increases, the risk of missed readings also increases
+        double missedReadingProbability = 0.0;
+
+        if (cameraState.camera_wear >= 75.0) {
+            missedReadingProbability = 0.25;
+        } else if (cameraState.camera_wear >= 50.0) {
+            missedReadingProbability = 0.10;
+        } else if (cameraState.camera_wear >= 25) {
+            missedReadingProbability = 0.01;
+        }
+
+        std::uniform_real_distribution<double> missedChance(0.0, 1.0);
+
+        //If the camera is still operational, readings may still be missed based on wear thresholds
+        if (!cameraState.failed && missedChance(rng) < missedReadingProbability) {
             std::cerr << "Camera " << deviceID << " missed obstacle reading at " << sendTime << std::endl;
             continue;
         }
