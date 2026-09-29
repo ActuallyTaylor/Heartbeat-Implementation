@@ -1,4 +1,5 @@
 #pragma once
+#include "json.hpp"
 
 namespace camera {
 
@@ -12,14 +13,25 @@ namespace camera {
     };
 
     struct CameraState {
-        double camera_wear = 0.0; // As the camera is exposed to the environment and mechanical vibration of the car it gradually wears down
+        /// As the camera is exposed to the environment and mechanical vibration of the car it gradually wears down
+        double cameraWear { 0.0 };
         bool failed = false;
+
+        /// How many times the camera has run the detection cycle in this session.
+        uint64_t detectionEvents { 0 };
     };
 
     struct ObstacleReading {
-        double distance_m{0.0};
-        double confidence{0.0};
+        double distanceMeters { 0.0 };
+        double confidence { 0.0 };
+
         ObstacleStatus status{ObstacleStatus::CLEAR};
+    };
+
+    struct RecoveryState {
+        uint64_t detectionEvents;
+
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(RecoveryState, detectionEvents);
     };
 
 }

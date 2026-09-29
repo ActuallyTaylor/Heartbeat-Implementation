@@ -13,7 +13,7 @@ namespace heartbeat {
     };
 
     // Generates to_json/from_json.
-    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Message, deviceID, timestamp)
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Message, deviceID, timestamp);
 }
 
 #endif //HEARTBEAT_IMPLEMENTATION_HEARTBEAT_H

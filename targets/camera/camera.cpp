@@ -5,15 +5,21 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <ctime>
+#include <filesystem>
 #include <iostream>
 #include <random>
 #include <thread>
+#include <string>
+#include <optional>
 
 #include "camera.h"
 #include "heartbeat.h"
 #include "httplib.hpp"
 #include "json.hpp"
+
+constexpr double MAX_WEAR = 100.0;
+constexpr std::string CHECKPOINT_FOLDER = "checkpoints";
+constexpr std::string CHECKPOINT_FILE_PREFIX = "camera_checkpoint_";
 
 static const char* statusName(const camera::ObstacleStatus status) {
     switch (status) {
@@ -39,15 +45,15 @@ static camera::ObstacleReading simulateNearestObstacle(const int deviceID, const
 
     const double wearIncrease = 0.1 + 4.9 * std::pow(randomPower(rng), 2.5); // Randomly simulates wear from 0.1 to 5%, biased towards 0.1%
 
-    state.camera_wear += wearIncrease; // Adds to accumulated camera wear
+    state.cameraWear += wearIncrease; // Adds to accumulated camera wear
 
     // Camera fails completely when it reaches the maximum wear threshold
-    if (constexpr double MAX_WEAR = 100.0; state.camera_wear >= MAX_WEAR) {
-        state.camera_wear = MAX_WEAR;
+    if (state.cameraWear >= MAX_WEAR) {
+        state.cameraWear = MAX_WEAR;
         state.failed = true;
 
         return {
-            .distance_m = -1.0, .confidence = 0.0, .status = camera::ObstacleStatus::FAULT 
+            .distanceMeters = -1.0, .confidence = 0.0, .status = camera::ObstacleStatus::FAULT
         };
     }
 
@@ -55,17 +61,17 @@ static camera::ObstacleReading simulateNearestObstacle(const int deviceID, const
     double invalidReadingProbability = 0.0;
 
     // As camera wear accumulates, the risk of an invalid reading increases
-    if (state.camera_wear >= 75.0) {
+    if (state.cameraWear >= 75.0) {
         invalidReadingProbability = 0.10;
-    } else if (state.camera_wear >= 50.0) {
+    } else if (state.cameraWear >= 50.0) {
         invalidReadingProbability = 0.5;
-    } else if (state.camera_wear >= 25.0) {
+    } else if (state.cameraWear >= 25.0) {
         invalidReadingProbability = 0.01;
     }
 
     if (invalidRandom(rng) < invalidReadingProbability) { 
         return { 
-            .distance_m = 999.0, .confidence = 0.0, .status = camera::ObstacleStatus::INVALID
+            .distanceMeters = 999.0, .confidence = 0.0, .status = camera::ObstacleStatus::INVALID
         };
     }
 
@@ -96,7 +102,43 @@ static camera::ObstacleReading simulateNearestObstacle(const int deviceID, const
         confidence = 0.90;
     }
 
-    return { .distance_m = distance, .confidence = confidence, .status = status };
+    return { .distanceMeters = distance, .confidence = confidence, .status = status };
+}
+
+static void deleteCameraState(const int deviceID) {
+    const std::string checkpointName = CHECKPOINT_FILE_PREFIX + std::to_string(deviceID);
+    const std::filesystem::path checkPointPath = std::filesystem::current_path().append(CHECKPOINT_FOLDER).append(checkpointName);
+
+    std::filesystem::remove(checkPointPath);
+}
+
+static void saveCameraState(const camera::RecoveryState &status, const int deviceID) {
+    const std::string checkpointName = CHECKPOINT_FILE_PREFIX + std::to_string(deviceID);
+    const std::filesystem::path checkPointPath = std::filesystem::current_path().append(CHECKPOINT_FOLDER).append(checkpointName);
+
+    // Create the checkpoints file.
+    std::filesystem::create_directory(checkPointPath.parent_path());
+
+    // Create a file stream that will write over the existing checkpoint
+    std::ofstream checkpointFile(checkPointPath);
+
+    const nlohmann::json payload = status;
+
+    checkpointFile << payload.dump();
+    checkpointFile.close();
+}
+
+static std::optional<camera::RecoveryState> loadExistingCameraState(const int deviceID)  {
+    const std::string checkpointName = CHECKPOINT_FILE_PREFIX + std::to_string(deviceID);
+
+    if (const std::filesystem::path checkPointPath = std::filesystem::current_path().append(CHECKPOINT_FOLDER).append(checkpointName); std::filesystem::exists(checkPointPath)) {
+        std::ifstream checkPointFile(checkPointPath);
+        auto state = nlohmann::json::parse(checkPointFile).get<camera::RecoveryState>();
+
+        return state;
+    }
+
+    return std::nullopt;
 }
 
 int main(int argc, char* argv[]) {
@@ -113,6 +155,12 @@ int main(int argc, char* argv[]) {
 
     camera::CameraState cameraState;
 
+    // Recover any previous checkpoints that a failed camera may have saved.
+    if (const auto recoveryState = loadExistingCameraState(deviceID)) {
+        cameraState.detectionEvents = recoveryState->detectionEvents;
+        std::cout << "Recovered camera state for device " << deviceID << ": " << cameraState.detectionEvents << " detection events." << std::endl;
+    }
+
     while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(2));
 
@@ -127,11 +175,11 @@ int main(int argc, char* argv[]) {
         //As the wear on the camera increases, the risk of missed readings also increases
         double missedReadingProbability = 0.0;
 
-        if (cameraState.camera_wear >= 75.0) {
+        if (cameraState.cameraWear >= 75.0) {
             missedReadingProbability = 0.25;
-        } else if (cameraState.camera_wear >= 50.0) {
+        } else if (cameraState.cameraWear >= 50.0) {
             missedReadingProbability = 0.10;
-        } else if (cameraState.camera_wear >= 25) {
+        } else if (cameraState.cameraWear >= 25) {
             missedReadingProbability = 0.01;
         }
 
@@ -140,6 +188,12 @@ int main(int argc, char* argv[]) {
             std::cerr << "Camera " << deviceID << " missed obstacle reading at " << sendTime << std::endl;
             continue;
         }
+
+        cameraState.detectionEvents += 1;
+        // If the camera has received a good reading, save its state into a checkpoint.
+        saveCameraState(camera::RecoveryState{
+            .detectionEvents = cameraState.detectionEvents + 1
+        }, deviceID);
 
         const heartbeat::Message heartbeat {
             .deviceID = deviceID,
@@ -156,8 +210,13 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        std::cout << "Camera " << deviceID << " nearest obstacle: " << obstacle.distance_m
+        std::cout << "Camera " << deviceID << " nearest obstacle: " << obstacle.distanceMeters
                   << " m [" << statusName(obstacle.status) << "]" << std::endl;
+    }
+
+    // If the camera did not fatally fail, delete the camera state since we don't care about it after the capture session.
+    if (!cameraState.failed) {
+        deleteCameraState(deviceID);
     }
 
     return 0;
