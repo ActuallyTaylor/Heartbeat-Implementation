@@ -7,6 +7,13 @@ the second process, an HTTP server serving as a mock CAN bus, which stores those
 message queue mimicking the queue-like properties of the real CAN bus. Finally, a Monitor process repeatedly checks the 
 bus for pings regularly, tracking active heartbeat devices and the timestamps of their most recent pings.
 
+# Fault Recovery with Redundancy Implementation
+The Fault Recovery with Redundancy project was built off the existing Heartbeat implementation, using the same overall static structure, but with added dynamic structure, as outlined in the addtional diagrams. To achieve the added Fault Recovery functionality, we added a layer of passive redundancy to the camera components of the system. In order to be able to start up the passively redundant camera instances with the same state of any failed camera instances, we implemented a checkpointing system to periodically store a snapshot of the camera's current session state. When a replacement camera instance is started up, it uses the ID of the failed camera instance to recover the last checkpoint of that failed instance, and sets its own state to the recovered state. 
+
+# Libraries Used
+- httplib: This C++ library is used in our project to create the HTTP server used to imitate the Bus component. This HTTP server is used to facilitate the simulated communication channels of our system. All communication between the Cameras and the Monitor component passes through the centralized HTTP server of the Bus component. 
+- json: This library C++ library was used to send data between the components of our system with json formatting. These json messages are the payloads sent by the Cameras, and respectively read by the Monitor. 
+
 # Build Instructions
 
 ## Operating System Requirements
