@@ -78,7 +78,37 @@ been seen before, saving the deviceID and initial ping time if not. If the devic
 updates the most recently received heartbeat timestamp for that device, and moves on. If any devices have not sent a
 heartbeat after a configurable timeout, the Monitor announces as such by printing a message to the console. 
 
-# Sequence Diagram Narrative
+# Fault Recovery Activity Diagram Narrative
+![Fault Recovery Activity Diagram](./docs/FaultRecoveryRedundancy_ActivitySwimlane.png)
+
+## Summary
+
+This activity diagram shows which actions are performed by the cameras, bus, monitor, and checkpoint throughout the process of fault detection (using the heartbeat pattern) and recovery (using passive redundancy and checkpoints). 
+
+## Walkthrough
+
+The process starts with a new camera being instantiated, since camera instances are the core actors in this system. As long as the bus and monitoring systems are there to receive and monitor messages from the cameras, they will continuously send their readings and heartbeats. 
+
+While the camera remains operation, it will perform its intended function (object detection), sending its detection results and heartbeat to the bus, to be read and tracked by the monitor. After each object detection is performed by a camera, it stores an updated checkpoint of its state, to be used for recovery if a fault is detected. 
+
+Continually, the monitor will be reading the oldest camera heartbeats stored on the bus, and ensuring that all active cameras have sent some heartbeat to the bus within the specified timeout limit. Once a camera exceeds the specified timeout limit without sending a heartbeat to the bus, the monitor component identifies this camera as having failed. 
+
+In the event that a camera failure has been identified, the monitor component will then instantiate a new camera with a matching ID to the failed one. On startup, this replacement camera uses its shared ID to access the latest checkpoint of the failed camera, starting off where the failed camera left off. 
+
+## Importance
+
+The activity diagram primarily emphasizes the responsibilities of each subcomponent in the camera system, particularly as they relate to the Fault Detection and Recovery process. 
+
+This activity diagram focuses on the Fault Recovery with Redundancy tactic:
+- During operation, cameras consistently store checkpoints of their most recent state
+- Missing heartbeats are treated as evidence of failure or disconnection
+- After missing heartbeats exceed the timeout threshold, a camera is flagged as failed
+- Once a camera fails, the monitor starts up a replacement camera
+- The replacement camera uses the ID of the failed camera to access its most recent checkpoint
+- The replacement camera sets its initial state to the failed camera's checkpoint
+- The replacement camera continues operation where the failed camera left off
+
+# Heartbeat Sequence Diagram Narrative
 ![Heartbeat sequence diagram](./docs/HeartbeatSequenceDiagram.png)
 
 ## Summary

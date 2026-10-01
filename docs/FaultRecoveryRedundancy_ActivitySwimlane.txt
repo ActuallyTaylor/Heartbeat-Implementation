@@ -1,0 +1,56 @@
+@startuml
+title Fault Recovery with Redundancy
+
+|Camera [device ID]|
+start
+:Start camera instance;
+
+|Monitor|
+while (Monitor running?) is (yes)
+|Camera [device ID]|
+  if (Camera operational?) then (yes)
+    :Run obstacle detection;
+
+    |Checkpoint Store|
+    :Save detection-event checkpoint;
+
+    |Camera [device ID]|
+    :Send heartbeat;
+
+    |Bus|
+    :Add heartbeat to queue;
+  else (no)
+    |Camera [device ID]|
+    :No heartbeat sent;
+  endif
+
+  |Monitor|
+  :Request oldest heartbeat;
+
+  |Bus|
+  if (Queue has a message?) then (yes)
+    :Remove oldest heartbeat;
+    :Return oldest heartbeat;
+
+    |Monitor|
+    :Update last-seen time for device;
+  endif
+
+  :Check registered devices;
+  if (Heartbeat within timeout limit?) then (yes)
+    :Create camera with failed device ID;
+
+    |Checkpoint Store|
+    :Provide latest checkpoint;
+
+    |Camera [device ID]|
+    :New camera loads checkpoint;
+    :Resume detection cycle;
+  else (no)
+    |Monitor|
+    :Continue monitoring;
+  endif
+endwhile (no)
+
+stop
+@enduml
