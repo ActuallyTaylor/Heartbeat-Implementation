@@ -1,15 +1,51 @@
-title Autonomous Car Camera Heartbeat Implementation
+@startuml
+title Camera Heartbeat, Checkpoint, and Recovery
+autonumber
 
-Camera->Bus:Send heartbeat message
-Bus->Bus:Store heartbeat message
-loop Monitor Bus for Camera Heartbeats 
-Monitor->Bus:Read next heartbeat
-Bus-->Monitor:Oldest heartbeat
-Monitor->Monitor:Set received device's last timestamp
+participant "Camera (device ID)" as Camera
+participant "Checkpoint file" as Checkpoint
+participant Bus
+participant Monitor
 
-loop All registered devices
-opt Camera has not beat in 5 seconds
-Monitor->Monitor:Log that a device is no longer alive
+par Camera process
+	loop Camera cycles
+		Camera -> Camera: Wait about 2 seconds; run obstacle detection
+		alt Camera reaches fatal wear threshold
+			Camera -> Camera: Stop without sending a heartbeat
+		else Camera cycle continues
+			opt Reading was not missed
+				Camera -> Checkpoint: Write detection-event count
+				Camera -> Bus: POST /send (device ID, timestamp)
+				Bus -> Bus: Enqueue heartbeat
+			end
+		end
+	end
+else Monitor process
+	loop Monitor polling
+		Monitor -> Bus: GET /read
+		alt Heartbeat is queued
+			Bus --> Monitor: Oldest heartbeat
+			Monitor -> Monitor: Register device or update last-seen timestamp
+		else Queue is empty
+			Bus --> Monitor: 204 No Content
+		end
+
+		Monitor -> Monitor: Check registered devices
+		alt Last heartbeat is older than 20 seconds
+			Monitor -> Monitor: Spawn replacement camera with same ID
+			Monitor -> Camera: Start replacement process
+			Camera -> Checkpoint: Load checkpoint for device ID
+			Checkpoint --> Camera: Saved detection-event count (if present)
+			Camera -> Camera: Resume detection loop
+		else Heartbeat is within timeout
+			Monitor -> Monitor: Continue monitoring
+		end
+	end
 end
-end
-end
+
+note over Camera, Checkpoint
+	The checkpoint stores only the detection-event count.
+	Camera wear and other runtime state are not restored.
+	A missed reading skips both checkpointing and heartbeat.
+end note
+@enduml
